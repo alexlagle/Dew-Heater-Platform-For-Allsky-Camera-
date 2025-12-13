@@ -1,0 +1,2127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>AllSky Camera Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --background: hsl(222, 47%, 6%);
+      --foreground: hsl(210, 40%, 96%);
+      --card: hsl(222, 47%, 9%);
+      --card-foreground: hsl(210, 40%, 96%);
+      --border: hsla(222, 30%, 40%, 0.25);
+      --border-strong: hsla(222, 30%, 70%, 0.35);
+      --muted: hsla(222, 30%, 50%, 0.2);
+      --muted-foreground: hsl(215, 20%, 65%);
+      --primary: hsl(187, 92%, 55%);
+      --primary-foreground: hsl(222, 47%, 6%);
+      --accent: hsl(187, 60%, 45%);
+      --accent-foreground: hsl(210, 40%, 96%);
+      --chart-temperature: hsl(0, 85%, 60%);
+      --chart-humidity: hsl(210, 90%, 55%);
+      --chart-dewpoint: hsl(45, 95%, 55%);
+      --status-on: hsl(142, 76%, 45%);
+      --status-off: hsl(0, 72%, 51%);
+      --radius: 18px;
+      --shadow-soft: 0 20px 60px rgba(0, 0, 0, 0.35);
+      --shadow-glow: 0 0 45px rgba(49, 168, 255, 0.08);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at top, rgba(49, 168, 255, 0.08), transparent 45%) var(--background);
+      color: var(--foreground);
+      line-height: 1.5;
+    }
+
+    img { max-width: 100%; display: block; }
+
+    .hidden { display: none !important; }
+
+    .app-shell {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 20px 64px;
+    }
+
+    .status-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 20px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: linear-gradient(160deg, rgba(21, 32, 44, 0.95), rgba(12, 16, 24, 0.95));
+      box-shadow: var(--shadow-glow);
+    }
+
+    .status-left {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      align-items: center;
+    }
+
+    .status-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid transparent;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+
+    .status-chip img {
+      width: 16px;
+      height: 16px;
+      opacity: 0.85;
+    }
+
+    #connectionIndicator[data-state="connected"] {
+      border-color: rgba(63, 191, 127, 0.3);
+      background: rgba(63, 191, 127, 0.12);
+      color: var(--status-on);
+    }
+
+    #connectionIndicator[data-state="disconnected"] {
+      border-color: rgba(251, 95, 95, 0.35);
+      background: rgba(251, 95, 95, 0.12);
+      color: var(--status-off);
+    }
+
+    #connectionIndicator img[data-role="connected"] { display: none; }
+    #connectionIndicator[data-state="connected"] img[data-role="connected"] { display: block; }
+    #connectionIndicator[data-state="connected"] img[data-role="disconnected"] { display: none; }
+    #connectionIndicator[data-state="disconnected"] img[data-role="connected"] { display: none; }
+    #connectionIndicator[data-state="disconnected"] img[data-role="disconnected"] { display: block; }
+
+    .live-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted-foreground);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .live-pill img {
+      width: 16px;
+      height: 16px;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.5; transform: scale(0.95); }
+      50% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0.5; transform: scale(0.95); }
+    }
+
+    #statusLastSync {
+      font-size: 0.85rem;
+      color: var(--muted-foreground);
+    }
+
+    .app-header {
+      margin: 32px 0 24px;
+    }
+
+    .app-header p.eyebrow {
+      font-size: 0.85rem;
+      color: var(--primary);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .app-header h1 {
+      margin: 0;
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 700;
+    }
+
+    .app-header p.subtext {
+      margin-top: 8px;
+      color: var(--muted-foreground);
+      max-width: 720px;
+    }
+
+    .app-main {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .card {
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(20, 28, 40, 0.9), rgba(14, 18, 28, 0.9));
+      padding: 20px;
+      box-shadow: var(--shadow-soft);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: var(--radius);
+      border: 1px solid transparent;
+      background: radial-gradient(circle at top, rgba(49, 168, 255, 0.05), transparent 60%);
+      pointer-events: none;
+    }
+
+    .card > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .card-heading {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .card-heading .title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .card-heading .title img {
+      width: 38px;
+      height: 38px;
+      padding: 8px;
+      border-radius: 14px;
+      background: rgba(25, 198, 255, 0.15);
+      border: 1px solid rgba(25, 198, 255, 0.45);
+      box-shadow: 0 0 18px rgba(25, 198, 255, 0.2);
+    }
+
+    .card-heading h2 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+
+    .card-heading p {
+      margin: 0;
+      color: var(--muted-foreground);
+      font-size: 0.85rem;
+    }
+
+    .card-heading-value {
+      margin-left: auto;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--primary);
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .ghost-button {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      color: var(--muted-foreground);
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: border-color 0.2s ease, color 0.2s ease;
+    }
+
+    .ghost-button:hover {
+      border-color: var(--primary);
+      color: var(--foreground);
+    }
+
+    .ghost-button img { width: 16px; height: 16px; }
+
+    .time-range-card {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      overflow: visible;
+      margin-bottom: 24px;
+    }
+
+    .time-header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .time-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted-foreground);
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      font-size: 0.8rem;
+    }
+
+    .time-label img {
+      width: 18px;
+      height: 18px;
+      opacity: 0.8;
+    }
+
+    .range-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .range-button {
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--foreground);
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .range-button.active {
+      background: var(--primary);
+      color: var(--primary-foreground);
+      border-color: transparent;
+    }
+
+    .range-description {
+      font-size: 0.85rem;
+      color: var(--muted-foreground);
+    }
+
+    .time-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-end;
+    }
+
+    .time-controls label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.9rem;
+      color: var(--muted-foreground);
+    }
+
+    .time-controls input {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 10px;
+      color: var(--foreground);
+      font-size: 0.9rem;
+      min-width: 180px;
+    }
+
+    .unit-picker {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: relative;
+      z-index: 50;
+    }
+
+    .unit-picker-label {
+      font-size: 0.9rem;
+      color: var(--muted-foreground);
+    }
+
+    .unit-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 14px;
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      color: var(--foreground);
+      cursor: pointer;
+      min-width: 90px;
+      justify-content: space-between;
+    }
+
+    .unit-toggle:hover,
+    .unit-picker.open .unit-toggle {
+      border-color: var(--primary);
+    }
+
+    .unit-chevron {
+      width: 12px;
+      height: 12px;
+      border-left: 1px solid var(--muted-foreground);
+      border-bottom: 1px solid var(--muted-foreground);
+      transform: rotate(-45deg) translateY(-1px);
+      transition: transform 0.15s ease;
+    }
+
+    .unit-picker.open .unit-chevron {
+      transform: rotate(135deg) translateY(1px);
+    }
+
+    .unit-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      bottom: auto;
+      right: 0;
+      background: rgba(7, 11, 18, 0.98);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+      padding: 6px;
+      display: none;
+      flex-direction: column;
+      min-width: 120px;
+      z-index: 200;
+    }
+
+    .unit-picker.open .unit-menu {
+      display: flex;
+    }
+
+    .unit-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: transparent;
+      border: none;
+      color: var(--foreground);
+      cursor: pointer;
+      font-weight: 500;
+      width: 100%;
+      text-align: left;
+    }
+
+    .unit-option.active {
+      background: rgba(25, 198, 255, 0.25);
+      color: var(--foreground);
+    }
+
+    .unit-check {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 1px solid var(--muted-foreground);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      color: var(--foreground);
+      opacity: 0;
+    }
+
+    .unit-option.active .unit-check {
+      opacity: 1;
+      background: var(--foreground);
+      color: var(--background);
+      border-color: transparent;
+    }
+
+    .primary-button {
+      background: var(--primary);
+      border: none;
+      color: var(--primary-foreground);
+      padding: 10px 18px;
+      border-radius: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 15px 30px rgba(25, 198, 255, 0.2);
+      min-width: 140px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 24px;
+    }
+
+    .duo-grid {
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+
+    .media-frame {
+      position: relative;
+      border-radius: calc(var(--radius) - 6px);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+      min-height: 280px;
+    }
+
+    .media-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .media-overlay {
+      position: absolute;
+      left: 16px;
+      bottom: 16px;
+      top: auto;
+      background: rgba(4, 7, 12, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.8rem;
+    }
+
+    .media-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: var(--muted-foreground);
+      text-align: center;
+      padding: 20px;
+    }
+
+    .media-placeholder img {
+      width: 64px;
+      height: 64px;
+      opacity: 0.4;
+    }
+
+    .control-card {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .relay-status-line {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+    }
+
+    .relay-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--status-off);
+      box-shadow: 0 0 10px rgba(248, 81, 73, 0.6);
+    }
+
+    .relay-dot[data-state="on"] {
+      background: var(--status-on);
+      box-shadow: 0 0 12px rgba(52, 208, 88, 0.8);
+    }
+
+    .stat-callout {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .helper-text {
+      font-size: 0.85rem;
+      color: var(--muted-foreground);
+      margin: 0;
+    }
+
+    .control-mode {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .control-mode-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--muted-foreground);
+    }
+
+    .control-mode-options {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+    }
+
+    .control-mode-btn {
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+      padding: 12px 14px;
+      text-align: left;
+      cursor: pointer;
+      color: var(--foreground);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+    }
+
+    .control-mode-btn:hover {
+      border-color: var(--primary);
+    }
+
+    .control-mode-btn.active {
+      border-color: var(--primary);
+      background: rgba(25, 198, 255, 0.12);
+      box-shadow: 0 10px 25px rgba(25, 198, 255, 0.15);
+      transform: translateY(-1px);
+    }
+
+    .control-mode-btn .mode-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .control-mode-btn .mode-hint {
+      color: var(--muted-foreground);
+      font-size: 0.85rem;
+    }
+
+    .manual-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .manual-controls button {
+      flex: 1 1 120px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      padding: 12px 18px;
+      font-weight: 600;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--foreground);
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+
+    .manual-controls button.active {
+      border-color: var(--primary);
+      background: rgba(25, 198, 255, 0.08);
+      transform: translateY(-1px);
+    }
+
+    .chart-grid {
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+
+    .chart-viewport {
+      height: 260px;
+      width: 100%;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .chart-viewport canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .chart-hover-overlay {
+      position: absolute;
+      min-width: 150px;
+      padding: 10px 14px;
+      background: rgba(6, 12, 20, 0.85);
+      border: 1px solid rgba(25, 198, 255, 0.4);
+      border-radius: 12px;
+      box-shadow: 0 15px 30px rgba(0, 0, 0, 0.45);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.12s ease;
+      left: 12px;
+      top: 12px;
+      z-index: 10;
+    }
+
+    .chart-hover-overlay.visible {
+      opacity: 1;
+    }
+
+    .chart-hover-time {
+      font-size: 0.75rem;
+      color: var(--muted-foreground);
+      margin-bottom: 4px;
+    }
+
+    .chart-hover-value {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--foreground);
+    }
+
+    .chart-scale {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: flex-end;
+      margin-bottom: 12px;
+    }
+
+    .chart-scale label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--muted-foreground);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .chart-scale input {
+      width: 80px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--foreground);
+      padding: 6px 8px;
+      font-size: 0.85rem;
+    }
+
+    .scale-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .scale-actions button {
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--foreground);
+      padding: 6px 10px;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+
+    .scale-actions button:hover {
+      border-color: var(--primary);
+    }
+
+    .weather-card {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .weather-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .weather-location-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--muted-foreground);
+    }
+
+    .weather-location {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--foreground);
+    }
+
+    .weather-summary {
+      color: var(--primary);
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .weather-divider {
+      width: 100%;
+      height: 1px;
+      background: var(--border);
+      opacity: 0.6;
+    }
+
+    .weather-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px 20px;
+    }
+
+    .weather-stat {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .weather-stat .stat-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: rgba(25, 198, 255, 0.15);
+      border: 1px solid rgba(25, 198, 255, 0.45);
+      box-shadow: 0 0 18px rgba(25, 198, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .weather-stat .stat-icon img {
+      width: 22px;
+      height: 22px;
+      opacity: 0.9;
+    }
+
+    .weather-stat .stat-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--muted-foreground);
+    }
+
+    .weather-stat .stat-value {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--foreground);
+    }
+
+    .weather-stat .stat-value.weather-split {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .weather-stat .stat-value.weather-split span {
+      white-space: nowrap;
+    }
+
+    .stat-sep {
+      color: var(--muted-foreground);
+      font-weight: 600;
+    }
+
+    .weather-moon .moon-paren,
+    .weather-moon .moon-illum {
+      color: inherit;
+      font-weight: 600;
+    }
+
+    .astro-conditions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .astro-values {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 0.9rem;
+    }
+
+    .astro-item {
+      display: flex;
+      gap: 6px;
+      color: var(--muted-foreground);
+      font-weight: 600;
+    }
+
+    .astro-value {
+      font-weight: 600;
+      color: var(--foreground);
+    }
+
+    .astro-value.quality-good {
+      color: var(--status-on);
+    }
+
+    .astro-value.quality-bad {
+      color: var(--status-off);
+    }
+
+    .weather-precip {
+      font-size: 0.85rem;
+      color: var(--muted-foreground);
+    }
+
+    .weather-updated {
+      font-size: 0.8rem;
+      color: var(--muted-foreground);
+    }
+
+    .astro-image-wrapper {
+      border-radius: calc(var(--radius) - 8px);
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.02);
+      padding: 12px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 220px;
+    }
+
+    .astro-image-wrapper img {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      height: auto;
+      object-fit: contain;
+    }
+
+    .app-footer {
+      margin-top: 12px;
+      font-size: 0.8rem;
+      color: var(--muted-foreground);
+      text-align: center;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 768px) {
+      .time-controls input {
+        width: 100%;
+        min-width: unset;
+      }
+
+      .unit-picker {
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      .card-heading {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .media-frame {
+        min-height: 220px;
+      }
+    }
+  </style>
+  <!-- Chart.js + adapters -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <!-- Icons are sourced from lucide.dev (ISC License). -->
+</head>
+<body data-default-hours="{{ default_range_hours }}">
+  <div class="app-shell">
+    <div class="status-bar">
+      <div class="status-left">
+        <div class="status-chip" id="connectionIndicator" data-state="disconnected">
+          <img src="{{ url_for('static', filename='icons/wifi.svg') }}" alt="" aria-hidden="true" data-role="connected">
+          <img src="{{ url_for('static', filename='icons/wifi-off.svg') }}" alt="" aria-hidden="true" data-role="disconnected">
+          <span id="connectionText">Disconnected</span>
+        </div>
+      </div>
+      <div id="statusLastSync">Last sync: --</div>
+    </div>
+
+    <header class="app-header">
+      <h1><span style="color: var(--primary);">AllSky</span> Camera Dashboard</h1>
+      <p class="subtext">
+        Streamlined status view for the dew heater controller with live temperature, humidity, dew-point traces,
+        manual overrides, and astronomy forecast data.
+      </p>
+    </header>
+
+    <main class="app-main">
+      <section class="card time-range-card">
+        <div class="time-header">
+          <div class="time-label">
+            <img src="{{ url_for('static', filename='icons/clock.svg') }}" alt="">
+            <span>Time Range</span>
+          </div>
+          <p class="range-description" id="rangeDescription">Showing past {{ default_range_hours }} hours.</p>
+        </div>
+        <div class="range-buttons" id="quickRangeButtons">
+          <button type="button" class="range-button" data-range-hours="1">1 H</button>
+          <button type="button" class="range-button" data-range-hours="6">6 H</button>
+          <button type="button" class="range-button" data-range-hours="12">12 H</button>
+          <button type="button" class="range-button" data-range-hours="24">24 H</button>
+          <button type="button" class="range-button" data-range-hours="72">3 D</button>
+        </div>
+        <div class="time-controls">
+          <div class="unit-picker" id="unitPicker">
+            <span class="unit-picker-label">Units:</span>
+            <button type="button" class="unit-toggle" id="unitToggle" aria-haspopup="listbox" aria-expanded="false">
+              <span id="unitPickerValue">°F</span>
+              <span class="unit-chevron" aria-hidden="true"></span>
+            </button>
+            <div class="unit-menu" id="unitMenu" role="listbox">
+              <button type="button" class="unit-option" data-unit-option="C" role="option" aria-selected="false">
+                <span class="unit-check">✓</span>
+                <span>°C</span>
+              </button>
+              <button type="button" class="unit-option active" data-unit-option="F" role="option" aria-selected="true">
+                <span class="unit-check">✓</span>
+                <span>°F</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="grid duo-grid">
+        <section class="card">
+          <div class="card-heading">
+            <div class="title">
+              <img src="{{ url_for('static', filename='icons/camera.svg') }}" alt="">
+              <div>
+                <h2>Latest AllSky Image</h2>
+                <p>Live view refreshed automatically</p>
+              </div>
+            </div>
+            <button type="button" class="ghost-button" id="refreshImageBtn">
+              <img src="{{ url_for('static', filename='icons/refresh-cw.svg') }}" alt="" aria-hidden="true">
+              Refresh
+            </button>
+          </div>
+          <div class="media-frame">
+            <img id="latestImage" alt="Latest AllSky snapshot" src="" style="display: none;">
+            <div id="latestImagePlaceholder" class="media-placeholder">
+              <img src="{{ url_for('static', filename='icons/camera.svg') }}" alt="" aria-hidden="true">
+              <div>No image available yet</div>
+            </div>
+            <div class="media-overlay" id="latestImageTimestamp">Updated: --</div>
+          </div>
+        </section>
+
+        <section class="card control-card">
+          <div class="card-heading">
+            <div class="title">
+              <img src="{{ url_for('static', filename='icons/flame.svg') }}" alt="">
+              <div>
+                <h2>Dew Heater Control</h2>
+                <p>Automatic dew-point driven regulation</p>
+              </div>
+            </div>
+          </div>
+          <div class="relay-status-line">
+            <span class="relay-dot" id="relayPulse" data-state="off"></span>
+            <div>
+              <div class="helper-text">Relay Status</div>
+              <div id="relayStatus" class="stat-callout">Relay: --</div>
+            </div>
+          </div>
+          <div class="stat-callout" id="currentTempDisplay">Current Temp: --</div>
+          <p class="helper-text" id="modeStatus">Automatic mode.</p>
+          <div class="control-mode">
+            <div class="control-mode-label">Control Mode</div>
+            <div class="control-mode-options">
+              <button type="button" class="control-mode-btn" data-mode-option="auto" aria-pressed="false">
+                <span class="mode-title">Automatic</span>
+                <span class="mode-hint">Dew-point driven</span>
+              </button>
+              <button type="button" class="control-mode-btn" data-mode-option="manual" aria-pressed="false">
+                <span class="mode-title">Manual</span>
+                <span class="mode-hint">Force relay state</span>
+              </button>
+            </div>
+            <p class="helper-text">Switch to manual mode to force relay state.</p>
+          </div>
+          <div class="manual-controls hidden" id="manualControls">
+            <button type="button" id="manualOnBtn">Force Relay On</button>
+            <button type="button" id="manualOffBtn">Force Relay Off</button>
+          </div>
+        </section>
+      </div>
+
+      <div class="grid chart-grid">
+        <section class="card chart-card">
+          <div class="card-heading">
+            <div class="title">
+              <img src="{{ url_for('static', filename='icons/thermometer.svg') }}" alt="">
+              <div>
+                <h2 id="tempHeading">Temperature (°C)</h2>
+              </div>
+            </div>
+            <div class="card-heading-value" id="tempHeadingValue">--</div>
+          </div>
+          <div class="chart-scale" data-target="temp">
+            <label>Y Min <input type="number" step="0.1" id="tempYMin" placeholder="auto"></label>
+            <label>Y Max <input type="number" step="0.1" id="tempYMax" placeholder="auto"></label>
+            <div class="scale-actions">
+              <button type="button" class="apply-scale" data-target="temp">Apply</button>
+              <button type="button" class="reset-scale" data-target="temp">Auto</button>
+            </div>
+          </div>
+          <div class="chart-viewport">
+            <canvas id="tempChart"></canvas>
+            <div class="chart-hover-overlay" id="tempHover">
+              <div class="chart-hover-time"></div>
+              <div class="chart-hover-value"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card chart-card">
+          <div class="card-heading">
+            <div class="title">
+              <img src="{{ url_for('static', filename='icons/cloud-rain.svg') }}" alt="">
+              <div>
+                <h2 id="dewHeading">Dew Point (°C)</h2>
+              </div>
+            </div>
+            <div class="card-heading-value" id="dewHeadingValue">--</div>
+          </div>
+          <div class="chart-scale" data-target="dew">
+            <label>Y Min <input type="number" step="0.1" id="dewYMin" placeholder="auto"></label>
+            <label>Y Max <input type="number" step="0.1" id="dewYMax" placeholder="auto"></label>
+            <div class="scale-actions">
+              <button type="button" class="apply-scale" data-target="dew">Apply</button>
+              <button type="button" class="reset-scale" data-target="dew">Auto</button>
+            </div>
+          </div>
+          <div class="chart-viewport">
+            <canvas id="dewChart"></canvas>
+            <div class="chart-hover-overlay" id="dewHover">
+              <div class="chart-hover-time"></div>
+              <div class="chart-hover-value"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card chart-card">
+          <div class="card-heading">
+            <div class="title">
+              <img src="{{ url_for('static', filename='icons/droplets.svg') }}" alt="">
+              <div>
+                <h2>Humidity (%)</h2>
+              </div>
+            </div>
+            <div class="card-heading-value" id="humidityHeadingValue">--</div>
+          </div>
+          <div class="chart-scale" data-target="humidity">
+            <label>Y Min <input type="number" step="0.1" id="humidityYMin" placeholder="auto"></label>
+            <label>Y Max <input type="number" step="0.1" id="humidityYMax" placeholder="auto"></label>
+            <div class="scale-actions">
+              <button type="button" class="apply-scale" data-target="humidity">Apply</button>
+              <button type="button" class="reset-scale" data-target="humidity">Auto</button>
+            </div>
+          </div>
+          <div class="chart-viewport">
+            <canvas id="humidityChart"></canvas>
+            <div class="chart-hover-overlay" id="humidityHover">
+              <div class="chart-hover-time"></div>
+              <div class="chart-hover-value"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="grid duo-grid">
+        <section class="card weather-card">
+          <div class="card-heading">
+            <div class="title">
+              <img src="{{ url_for('static', filename='icons/cloud.svg') }}" alt="">
+              <div>
+                <h2>Local Weather</h2>
+                <p>Ambient + astronomy forecast</p>
+              </div>
+            </div>
+          </div>
+          <div class="weather-meta">
+            <div class="weather-location-label">Location</div>
+            <div class="weather-location" id="weatherLocation">--</div>
+            <div class="weather-summary" id="weatherSummary">--</div>
+          </div>
+          <div class="weather-divider"></div>
+          <div class="weather-stats-grid" id="weatherStats">
+            <div class="weather-stat">
+              <div class="stat-icon">
+                <img src="{{ url_for('static', filename='icons/thermometer.svg') }}" alt="">
+              </div>
+              <div>
+                <div class="stat-label">Temperature</div>
+                <div class="stat-value" data-field="temperature_c" data-format="temp">--</div>
+              </div>
+            </div>
+            <div class="weather-stat">
+              <div class="stat-icon">
+                <img src="{{ url_for('static', filename='icons/droplets.svg') }}" alt="">
+              </div>
+              <div>
+                <div class="stat-label">Dew Point</div>
+                <div class="stat-value" data-field="dew_point_c" data-format="temp">--</div>
+              </div>
+            </div>
+            <div class="weather-stat">
+              <div class="stat-icon">
+                <img src="{{ url_for('static', filename='icons/wind.svg') }}" alt="">
+              </div>
+              <div>
+                <div class="stat-label">Humidity</div>
+                <div class="stat-value" data-field="humidity_pct" data-format="percent">--</div>
+              </div>
+            </div>
+            <div class="weather-stat">
+              <div class="stat-icon">
+                <img src="{{ url_for('static', filename='icons/cloud.svg') }}" alt="">
+              </div>
+              <div>
+                <div class="stat-label">Cloud Cover</div>
+                <div class="stat-value" data-field="cloud_cover_pct" data-format="percent">--</div>
+              </div>
+            </div>
+            <div class="weather-stat">
+              <div class="stat-icon">
+                <img src="{{ url_for('static', filename='icons/sun.svg') }}" alt="">
+              </div>
+              <div>
+                <div class="stat-label">High / Low</div>
+                <div class="stat-value weather-split">
+                  <span data-field="temp_max_c" data-format="temp">--</span>
+                  <span class="stat-sep">/</span>
+                  <span data-field="temp_min_c" data-format="temp">--</span>
+                </div>
+              </div>
+            </div>
+            <div class="weather-stat">
+              <div class="stat-icon">
+                <img src="{{ url_for('static', filename='icons/moon.svg') }}" alt="">
+              </div>
+              <div>
+                <div class="stat-label">Moon</div>
+                <div class="stat-value weather-split weather-moon">
+                  <span data-field="moon_phase_name" data-format="text">--</span>
+                  <span class="stat-sep moon-paren">(</span>
+                  <span data-field="moon_illumination_pct" data-format="percent" class="moon-illum">--</span>
+                  <span class="stat-sep moon-paren">)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="weather-divider"></div>
+          <div class="astro-conditions">
+            <div class="astro-label">Astronomy Conditions</div>
+            <div class="astro-values">
+              <div class="astro-item">
+                <span class="astro-item-label">Seeing:</span>
+                <span class="astro-value" data-field="seeing_quality" data-format="quality">--</span>
+              </div>
+              <div class="astro-item">
+                <span class="astro-item-label">Transparency:</span>
+                <span class="astro-value" data-field="transparency_quality" data-format="quality">--</span>
+              </div>
+            </div>
+          </div>
+          <div class="weather-precip">Precipitation: <span data-field="precipitation_chance" data-format="text">--</span></div>
+          <div class="weather-updated" id="weatherUpdated">Updated: --</div>
+        </section>
+
+        <section class="card astro-card">
+          <div class="card-heading">
+            <div class="title">
+              <img src="{{ url_for('static', filename='icons/moon.svg') }}" alt="">
+              <div>
+                <h2>Three Day Astronomy Forecast</h2>
+                <p>7timer! (CMA) data</p>
+              </div>
+            </div>
+          </div>
+          <div class="astro-image-wrapper">
+            <img id="astroChartImage" alt="7timer astronomy forecast" src="">
+          </div>
+          <p class="helper-text">Image refreshes hourly to stay current.</p>
+        </section>
+      </div>
+    </main>
+
+    <footer class="app-footer"></footer>
+  </div>
+
+  <script>
+    const defaultRangeHours = Number(document.body.dataset.defaultHours || 1);
+    const tempCtx = document.getElementById('tempChart').getContext('2d');
+    const dewCtx = document.getElementById('dewChart').getContext('2d');
+    const humidityCtx = document.getElementById('humidityChart').getContext('2d');
+    const unitPicker = document.getElementById('unitPicker');
+    const unitToggle = document.getElementById('unitToggle');
+    const unitMenu = document.getElementById('unitMenu');
+    const unitPickerValue = document.getElementById('unitPickerValue');
+    const unitOptions = unitMenu ? Array.from(unitMenu.querySelectorAll('[data-unit-option]')) : [];
+    const modeButtons = Array.from(document.querySelectorAll('.control-mode-btn'));
+    const manualOnBtn = document.getElementById('manualOnBtn');
+    const manualOffBtn = document.getElementById('manualOffBtn');
+    const manualControls = document.getElementById('manualControls');
+    const modeStatusEl = document.getElementById('modeStatus');
+    const currentTempEl = document.getElementById('currentTempDisplay');
+    const relayStatusEl = document.getElementById('relayStatus');
+    const relayPulse = document.getElementById('relayPulse');
+    const weatherCardEl = document.querySelector('.weather-card');
+    const weatherFieldNodes = weatherCardEl ? Array.from(weatherCardEl.querySelectorAll('[data-field]')) : [];
+    const weatherUpdatedEl = document.getElementById('weatherUpdated');
+    const latestImageEl = document.getElementById('latestImage');
+    const latestImagePlaceholder = document.getElementById('latestImagePlaceholder');
+    const latestImageTimestamp = document.getElementById('latestImageTimestamp');
+    const astroChartImage = document.getElementById('astroChartImage');
+    const rangeDescription = document.getElementById('rangeDescription');
+    const connectionIndicator = document.getElementById('connectionIndicator');
+    const connectionText = document.getElementById('connectionText');
+    const statusLastSync = document.getElementById('statusLastSync');
+    const refreshImageBtn = document.getElementById('refreshImageBtn');
+    const quickRangeButtons = Array.from(document.querySelectorAll('[data-range-hours]'));
+    const tempValueEl = document.getElementById('tempHeadingValue');
+    const dewValueEl = document.getElementById('dewHeadingValue');
+    const humidityValueEl = document.getElementById('humidityHeadingValue');
+    const hoverOverlays = {
+      temp: document.getElementById('tempHover'),
+      dew: document.getElementById('dewHover'),
+      humidity: document.getElementById('humidityHover'),
+    };
+
+    let tempChart;
+    let dewChart;
+    let humidityChart;
+    let eventSource;
+    let latestData = null;
+    let currentWeather = null;
+    let tempUnit = 'F';
+    let currentMode = 'auto';
+    let chartState = { mode: 'hours', hours: defaultRangeHours };
+
+    const scaleControls = {
+      temp: { min: document.getElementById('tempYMin'), max: document.getElementById('tempYMax'), get chart() { return tempChart; } },
+      dew: { min: document.getElementById('dewYMin'), max: document.getElementById('dewYMax'), get chart() { return dewChart; } },
+      humidity: { min: document.getElementById('humidityYMin'), max: document.getElementById('humidityYMax'), get chart() { return humidityChart; } },
+    };
+    const defaultScales = {
+      temp: {
+        C: { min: -20, max: 40 },
+        F: { min: -4, max: 104 },
+      },
+      dew: {
+        C: { min: -20, max: 30 },
+        F: { min: -4, max: 86 },
+      },
+      humidity: {
+        C: { min: 0, max: 100 },
+        F: { min: 0, max: 100 },
+      },
+    };
+
+    const hoverLinePlugin = {
+      id: 'hoverLine',
+      afterDraw(chart) {
+        const tooltip = chart.tooltip;
+        const activeElements = tooltip && tooltip.getActiveElements
+          ? tooltip.getActiveElements()
+          : chart._active || [];
+        if (!activeElements || !activeElements.length) {
+          return;
+        }
+        const ctx = chart.ctx;
+        const x = activeElements[0].element.x;
+        const { top, bottom } = chart.chartArea;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(x, top);
+        ctx.lineTo(x, bottom);
+        ctx.stroke();
+        ctx.restore();
+      },
+    };
+    Chart.register(hoverLinePlugin);
+
+    function hideHoverOverlays() {
+      Object.values(hoverOverlays).forEach((overlay) => {
+        if (overlay) overlay.classList.remove('visible');
+      });
+    }
+
+    function externalHoverTooltip(context) {
+      const { chart, tooltip } = context;
+      const overlay = chart.$hoverOverlay;
+      if (!overlay) return;
+      const timeEl = overlay.querySelector('.chart-hover-time');
+      const valueEl = overlay.querySelector('.chart-hover-value');
+      if (!tooltip || tooltip.opacity === 0) {
+        overlay.classList.remove('visible');
+        return;
+      }
+      overlay.classList.add('visible');
+      const title = tooltip.title && tooltip.title.length ? tooltip.title[0] : '';
+      const bodyLine =
+        tooltip.body && tooltip.body.length && tooltip.body[0].lines.length
+          ? tooltip.body[0].lines[0]
+          : '';
+      if (timeEl) {
+        timeEl.textContent = title;
+      }
+      if (valueEl) {
+        valueEl.textContent = bodyLine;
+      }
+      const overlayWidth = overlay.offsetWidth || 140;
+      const overlayHeight = overlay.offsetHeight || 60;
+      const parentWidth = chart.width;
+      const parentHeight = chart.height;
+      const posX = Math.min(
+        Math.max(tooltip.caretX + 12, 12),
+        parentWidth - overlayWidth - 12
+      );
+      const posY = Math.min(
+        Math.max(tooltip.caretY - overlayHeight - 12, 12),
+        parentHeight - overlayHeight - 12
+      );
+      overlay.style.left = `${posX}px`;
+      overlay.style.top = `${posY}px`;
+    }
+
+    function setModeButtonState(mode) {
+      currentMode = mode;
+      modeButtons.forEach((button) => {
+        const active = button.dataset.modeOption === mode;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
+    }
+
+    function updateUnitPickerUI(unit) {
+      if (unitPickerValue) {
+        unitPickerValue.textContent = `°${unit}`;
+      }
+      unitOptions.forEach((option) => {
+        const active = option.dataset.unitOption === unit;
+        option.classList.toggle('active', active);
+        option.setAttribute('aria-selected', String(active));
+      });
+    }
+
+    function closeUnitMenu() {
+      if (!unitPicker) return;
+      unitPicker.classList.remove('open');
+      if (unitToggle) {
+        unitToggle.setAttribute('aria-expanded', 'false');
+      }
+    }
+
+    function openUnitMenu() {
+      if (!unitPicker) return;
+      unitPicker.classList.add('open');
+      if (unitToggle) {
+        unitToggle.setAttribute('aria-expanded', 'true');
+      }
+    }
+
+    function setTempUnit(unit) {
+      if (!unit || (unit !== 'C' && unit !== 'F') || unit === tempUnit) {
+        closeUnitMenu();
+        return;
+      }
+      tempUnit = unit;
+      updateUnitPickerUI(unit);
+      closeUnitMenu();
+      hideHoverOverlays();
+      setScaleDefaultsForUnit();
+      if (latestData) {
+        renderCharts(latestData);
+        updateWeatherSummary(currentWeather);
+      } else if (chartState.mode === 'hours') {
+        setQuickRange(chartState.hours);
+      }
+    }
+
+    updateUnitPickerUI(tempUnit);
+
+    function updateChartValue(element, value, format) {
+      if (!element) return;
+      if (value === null || value === undefined || Number.isNaN(value)) {
+        element.textContent = '--';
+        return;
+      }
+      if (format === 'temp') {
+        element.textContent = `${convertTempValue(value).toFixed(1)} °${tempUnit}`;
+        return;
+      }
+      if (format === 'humidity') {
+        element.textContent = `${value.toFixed(0)} %`;
+        return;
+      }
+      element.textContent = String(value);
+    }
+
+    function formatWeatherValue(value, format) {
+      if (value === null || value === undefined) {
+        return '--';
+      }
+      if (format === 'temp') {
+        const num = Number(value);
+        if (Number.isNaN(num)) {
+          return '--';
+        }
+        const display = convertTempValue(num);
+        return `${display.toFixed(1)} °${tempUnit}`;
+      }
+      if (format === 'percent') {
+        const num = Number(value);
+        if (Number.isNaN(num)) {
+          return '--';
+        }
+        return `${num.toFixed(0)} %`;
+      }
+      return String(value);
+    }
+
+    function updateQualityClass(node, valueText) {
+      node.classList.remove('quality-good', 'quality-bad');
+      if (!valueText || valueText === '--') {
+        return;
+      }
+      const normalized = valueText.toLowerCase();
+      if (normalized.includes('excellent') || normalized.includes('good')) {
+        node.classList.add('quality-good');
+      } else if (normalized.includes('poor') || normalized.includes('below')) {
+        node.classList.add('quality-bad');
+      }
+    }
+
+    function highlightRangeButton(hours) {
+      quickRangeButtons.forEach((button) => {
+        const matches = hours !== null && Number(button.dataset.rangeHours) === Number(hours);
+        button.classList.toggle('active', matches);
+      });
+    }
+
+    function updateRangeDescription() {
+      if (!rangeDescription) return;
+      if (chartState.mode === 'hours') {
+        const hrs = chartState.hours;
+        rangeDescription.textContent = `Showing past ${hrs} hour${hrs === 1 ? '' : 's'}.`;
+        return;
+      }
+      const start = chartState.start ? new Date(chartState.start) : null;
+      const end = chartState.end ? new Date(chartState.end) : null;
+      if (!start || !end || Number.isNaN(start.valueOf()) || Number.isNaN(end.valueOf())) {
+        rangeDescription.textContent = 'Showing custom range.';
+        return;
+      }
+      rangeDescription.textContent = `Custom range: ${start.toLocaleString()} – ${end.toLocaleString()}`;
+    }
+
+    function setScaleDefaultsForUnit() {
+      Object.entries(scaleControls).forEach(([key, controls]) => {
+        const defaults = defaultScales[key]?.[tempUnit];
+        if (controls.min) {
+          controls.min.placeholder = defaults?.min !== undefined ? String(defaults.min) : 'auto';
+          controls.min.value = '';
+        }
+        if (controls.max) {
+          controls.max.placeholder = defaults?.max !== undefined ? String(defaults.max) : 'auto';
+          controls.max.value = '';
+        }
+        if (controls.chart) {
+          controls.chart.options.scales.y.min = undefined;
+          controls.chart.options.scales.y.max = undefined;
+          controls.chart.update();
+        }
+      });
+    }
+
+    function updateHeadingUnits() {
+      const tempHeading = document.getElementById('tempHeading');
+      const dewHeading = document.getElementById('dewHeading');
+      if (tempHeading) {
+        tempHeading.textContent = `Temperature (°${tempUnit})`;
+      }
+      if (dewHeading) {
+        dewHeading.textContent = `Dew Point (°${tempUnit})`;
+      }
+    }
+
+    function setConnectionStatus(connected) {
+      if (!connectionIndicator) return;
+      connectionIndicator.dataset.state = connected ? 'connected' : 'disconnected';
+      if (connectionText) {
+        connectionText.textContent = connected ? 'Connected' : 'Disconnected';
+      }
+    }
+
+    function updateLastSyncDisplay(dateValue) {
+      if (!statusLastSync) return;
+      if (!dateValue || Number.isNaN(dateValue.getTime())) {
+        statusLastSync.textContent = 'Last sync: --';
+        return;
+      }
+      statusLastSync.textContent = `Last sync: ${dateValue.toLocaleString()}`;
+    }
+
+    function updateWeatherSummary(weather) {
+      const summaryEl = document.getElementById('weatherSummary');
+      const locationEl = document.getElementById('weatherLocation');
+      if (!weather) {
+        if (!currentWeather) {
+          weatherFieldNodes.forEach((node) => {
+            node.textContent = '--';
+            if (node.dataset.format === 'quality') {
+              node.classList.remove('quality-good', 'quality-bad');
+            }
+          });
+          if (weatherUpdatedEl) {
+            weatherUpdatedEl.textContent = 'Updated: --';
+          }
+          if (summaryEl) summaryEl.textContent = '--';
+          if (locationEl) locationEl.textContent = '--';
+        }
+        return;
+      }
+      currentWeather = weather;
+      if (locationEl) {
+        locationEl.textContent = weather.location || '--';
+      }
+      if (summaryEl) {
+        summaryEl.textContent = weather.summary || '--';
+      }
+      weatherFieldNodes.forEach((node) => {
+        const field = node.dataset.field;
+        const format = node.dataset.format || 'text';
+        const value = weather && Object.prototype.hasOwnProperty.call(weather, field)
+          ? weather[field]
+          : null;
+        const text = formatWeatherValue(value, format);
+        node.textContent = text;
+        if (format === 'quality') {
+          updateQualityClass(node, text);
+        }
+      });
+      if (weatherUpdatedEl) {
+        const timestamp = weather && weather.timestamp;
+        if (timestamp) {
+          const date = new Date(timestamp);
+          weatherUpdatedEl.textContent = `Updated: ${date.toLocaleString()}`;
+        } else {
+          weatherUpdatedEl.textContent = 'Updated: --';
+        }
+      }
+    }
+
+    function applyControlState(state) {
+      if (!state) return;
+      setModeButtonState(state.mode);
+      const manualDisabled = state.mode !== 'manual';
+      if (manualControls) {
+        manualControls.classList.toggle('hidden', manualDisabled);
+      }
+      if (manualOnBtn) {
+        manualOnBtn.disabled = manualDisabled;
+        manualOnBtn.classList.toggle('active', !manualDisabled && state.manual_on);
+      }
+      if (manualOffBtn) {
+        manualOffBtn.disabled = manualDisabled;
+        manualOffBtn.classList.toggle('active', !manualDisabled && !state.manual_on);
+      }
+      if (modeStatusEl) {
+        if (state.mode === 'manual') {
+          modeStatusEl.textContent = `Manual mode: relay ${state.manual_on ? 'ON' : 'OFF'}`;
+        } else {
+          modeStatusEl.textContent = 'Automatic mode (dew-point driven).';
+        }
+      }
+      if (state.weather) {
+        updateWeatherSummary(state.weather);
+      }
+    }
+
+    async function fetchControlState() {
+      const response = await fetch('/api/control');
+      if (!response.ok) {
+        throw new Error('Failed to load controller state');
+      }
+      const data = await response.json();
+      applyControlState(data);
+    }
+
+    async function updateControlState(payload) {
+      const response = await fetch('/api/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || 'Controller update failed');
+      }
+      const data = await response.json();
+      applyControlState(data);
+    }
+
+    function notifyControlError(err) {
+      console.error(err);
+      alert(err.message || 'Failed to update controller mode.');
+    }
+
+    async function loadData(params) {
+      const query = new URLSearchParams(params).toString();
+      const response = await fetch(`/api/readings?${query}`);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || 'Failed to fetch data');
+      }
+      return response.json();
+    }
+
+    function buildDataset(label, data, color, options = {}) {
+      return {
+        label,
+        data,
+        borderColor: color,
+        backgroundColor: options.backgroundColor || `${color}33`,
+        tension: 0.2,
+        fill: options.fill ?? false,
+        borderDash: options.borderDash,
+      };
+    }
+
+    function updateRelayStatus(relayOn) {
+      if (!relayStatusEl || relayOn === undefined || relayOn === null) {
+        return;
+      }
+      relayStatusEl.textContent = `Relay: ${relayOn ? 'ON' : 'OFF'}`;
+      if (relayPulse) {
+        relayPulse.dataset.state = relayOn ? 'on' : 'off';
+      }
+    }
+
+    function updateCurrentTemp(tempC) {
+      if (!currentTempEl) return;
+      if (tempC === undefined || tempC === null || Number.isNaN(tempC)) {
+        currentTempEl.textContent = 'Current Temp: --';
+        return;
+      }
+      const displayValue = convertTempValue(tempC);
+      currentTempEl.textContent = `Current Temp: ${displayValue.toFixed(1)} °${tempUnit}`;
+    }
+
+    function convertTempValue(valueC) {
+      return tempUnit === 'C' ? valueC : (valueC * 9 / 5) + 32;
+    }
+
+    function formatTempLabel(base) {
+      return `${base} (°${tempUnit})`;
+    }
+
+function buildChartOptions() {
+      return {
+        type: 'line',
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            x: {
+              type: 'time',
+              time: { tooltipFormat: 'PPpp' },
+              ticks: { color: '#c9d1d9' },
+              grid: { color: '#30363d' }
+            },
+            y: {
+              ticks: { color: '#c9d1d9' },
+              grid: { color: '#30363d' }
+            }
+          },
+          plugins: {
+            legend: { position: 'bottom' },
+            tooltip: {
+              enabled: false,
+              mode: 'index',
+              intersect: false,
+              external: externalHoverTooltip,
+              callbacks: {
+                label: (context) => {
+                  const label = context.dataset?.label || '';
+                  return `${label}: ${context.formattedValue}`;
+                },
+              },
+            },
+          }
+        }
+      };
+    }
+
+    function renderCharts(data) {
+      hideHoverOverlays();
+      const labels = data.timestamps.map((ts) => new Date(ts));
+      const temps = data.temperature_c.map(convertTempValue);
+      const dews = data.dew_point_c.map(convertTempValue);
+      const humidity = data.humidity_pct;
+      const lastTempC = data.temperature_c.length ? data.temperature_c[data.temperature_c.length - 1] : null;
+      const lastDewC = data.dew_point_c.length ? data.dew_point_c[data.dew_point_c.length - 1] : null;
+      const lastHumidity = humidity.length ? humidity[humidity.length - 1] : null;
+
+      if (!tempChart) {
+        tempChart = new Chart(tempCtx, {
+          ...buildChartOptions(),
+          data: {
+            labels,
+            datasets: [
+              buildDataset(formatTempLabel('Temperature'), temps, '#ff7b72', { backgroundColor: 'rgba(255,123,114,0.2)', fill: true })
+            ]
+          }
+        });
+        tempChart.$hoverOverlay = hoverOverlays.temp;
+      } else {
+        tempChart.data.labels = labels;
+        tempChart.data.datasets[0].data = temps;
+        tempChart.data.datasets[0].label = formatTempLabel('Temperature');
+        tempChart.update();
+        tempChart.$hoverOverlay = hoverOverlays.temp;
+      }
+
+      if (!dewChart) {
+        dewChart = new Chart(dewCtx, {
+          ...buildChartOptions(),
+          data: {
+            labels,
+            datasets: [
+              buildDataset(formatTempLabel('Dew Point'), dews, '#d29922', {
+                borderDash: [5, 5],
+                fill: true,
+                backgroundColor: 'rgba(210,153,34,0.2)'
+              })
+            ]
+          }
+        });
+        dewChart.$hoverOverlay = hoverOverlays.dew;
+      } else {
+        dewChart.data.labels = labels;
+        dewChart.data.datasets[0].data = dews;
+        dewChart.data.datasets[0].label = formatTempLabel('Dew Point');
+        dewChart.update();
+        dewChart.$hoverOverlay = hoverOverlays.dew;
+      }
+
+      if (!humidityChart) {
+        humidityChart = new Chart(humidityCtx, {
+          ...buildChartOptions(),
+          data: {
+            labels,
+            datasets: [
+              buildDataset('Humidity (%)', humidity, '#58a6ff', { backgroundColor: 'rgba(88,166,255,0.15)', fill: true })
+            ]
+          }
+        });
+        humidityChart.$hoverOverlay = hoverOverlays.humidity;
+      } else {
+        humidityChart.data.labels = labels;
+        humidityChart.data.datasets[0].data = humidity;
+        humidityChart.update();
+        humidityChart.$hoverOverlay = hoverOverlays.humidity;
+      }
+
+      if (data.relay_state && data.relay_state.length) {
+        updateRelayStatus(data.relay_state[data.relay_state.length - 1]);
+      }
+      updateCurrentTemp(lastTempC);
+      updateHeadingUnits();
+      updateChartValue(tempValueEl, lastTempC, 'temp');
+      updateChartValue(dewValueEl, lastDewC, 'temp');
+      updateChartValue(humidityValueEl, lastHumidity, 'humidity');
+      if (data.end) {
+        updateLastSyncDisplay(new Date(data.end));
+      }
+    }
+
+    function pruneOldPoints(chartInstance, cutoff) {
+      if (!chartInstance) return;
+      const labels = chartInstance.data.labels;
+      if (!labels.length) return;
+      while (labels.length && labels[0] < cutoff) {
+        labels.shift();
+        chartInstance.data.datasets.forEach((dataset) => dataset.data.shift());
+      }
+    }
+
+    function appendLivePoint(point) {
+      if (chartState.mode !== 'hours') {
+        return;
+      }
+      const ts = new Date(point.timestamp);
+      [tempChart, dewChart, humidityChart].forEach((chartInstance) => {
+        if (!chartInstance) return;
+        chartInstance.data.labels.push(ts);
+      });
+      if (tempChart) {
+        tempChart.data.datasets[0].data.push(convertTempValue(point.temp_c));
+      }
+      if (dewChart) {
+        const dewValue = convertTempValue(point.dew_point_c);
+        dewChart.data.datasets[0].data.push(dewValue);
+      }
+      if (humidityChart) {
+        humidityChart.data.datasets[0].data.push(point.humidity_pct);
+      }
+      const cutoff = new Date(ts.getTime() - chartState.hours * 3600 * 1000);
+      pruneOldPoints(tempChart, cutoff);
+      pruneOldPoints(dewChart, cutoff);
+      pruneOldPoints(humidityChart, cutoff);
+      if (latestData) {
+        latestData.timestamps.push(point.timestamp);
+        latestData.temperature_c.push(point.temp_c);
+        latestData.dew_point_c.push(point.dew_point_c);
+        latestData.humidity_pct.push(point.humidity_pct);
+        latestData.relay_state.push(point.relay_on);
+        if (!latestData.weather) latestData.weather = [];
+        const weatherSnapshot = point.weather || currentWeather;
+        latestData.weather.push(weatherSnapshot || null);
+        while (latestData.timestamps.length && new Date(latestData.timestamps[0]) < cutoff) {
+          latestData.timestamps.shift();
+          latestData.temperature_c.shift();
+          latestData.dew_point_c.shift();
+          latestData.humidity_pct.shift();
+          latestData.relay_state.shift();
+          if (latestData.weather) {
+            latestData.weather.shift();
+          }
+        }
+      }
+      tempChart && tempChart.update('none');
+      dewChart && dewChart.update('none');
+      humidityChart && humidityChart.update('none');
+      updateRelayStatus(point.relay_on);
+      updateCurrentTemp(point.temp_c);
+      updateChartValue(tempValueEl, point.temp_c, 'temp');
+      updateChartValue(dewValueEl, point.dew_point_c, 'temp');
+      updateChartValue(humidityValueEl, point.humidity_pct, 'humidity');
+      updateWeatherSummary(point.weather || currentWeather);
+      updateLastSyncDisplay(ts);
+    }
+
+    function startLiveStream() {
+      if (eventSource) {
+        eventSource.close();
+      }
+      eventSource = new EventSource('/api/live');
+      eventSource.onopen = () => setConnectionStatus(true);
+      eventSource.onmessage = (event) => {
+        try {
+          const point = JSON.parse(event.data);
+          appendLivePoint(point);
+          if (Object.prototype.hasOwnProperty.call(point, 'mode') && Object.prototype.hasOwnProperty.call(point, 'manual_on')) {
+            applyControlState({
+              mode: point.mode,
+              manual_on: point.manual_on,
+              relay_on: point.relay_on
+            });
+          }
+        } catch (err) {
+          console.error('Failed to parse live update', err);
+        }
+      };
+      eventSource.onerror = () => {
+        console.warn('Live stream disconnected, retrying soon...');
+        setConnectionStatus(false);
+        eventSource.close();
+        setTimeout(startLiveStream, 5000);
+      };
+    }
+
+    async function refresh(params) {
+      try {
+        const data = await loadData(params);
+        renderCharts(data);
+        latestData = data;
+      } catch (err) {
+        console.error(err);
+        alert('Failed to load data: ' + err.message);
+      }
+    }
+
+    function setQuickRange(hours) {
+      chartState = { mode: 'hours', hours: Number(hours) };
+      highlightRangeButton(chartState.hours);
+      updateRangeDescription();
+      refresh({ hours: chartState.hours });
+    }
+
+    function setCustomRange(start, end) {
+      chartState = { mode: 'custom', start, end };
+      highlightRangeButton(null);
+      updateRangeDescription();
+      refresh({ start, end });
+    }
+
+    async function refreshLatestImage() {
+      if (!latestImageEl || !latestImagePlaceholder) return;
+      try {
+        if (refreshImageBtn) {
+          refreshImageBtn.disabled = true;
+        }
+        const response = await fetch(`/api/latest-image?cacheBust=${Date.now()}`);
+        if (!response.ok) throw new Error('no image');
+        const data = await response.json();
+        latestImageEl.src = data.url;
+        latestImageEl.style.display = 'block';
+        latestImagePlaceholder.style.display = 'none';
+        if (latestImageTimestamp) {
+          if (data.last_modified) {
+            latestImageTimestamp.textContent = `Updated: ${new Date(data.last_modified).toLocaleString()}`;
+          } else {
+            latestImageTimestamp.textContent = 'Updated: Just now';
+          }
+        }
+      } catch (err) {
+        latestImageEl.style.display = 'none';
+        latestImagePlaceholder.style.display = 'flex';
+        if (latestImageTimestamp) {
+          latestImageTimestamp.textContent = 'Updated: --';
+        }
+      } finally {
+        if (refreshImageBtn) {
+          refreshImageBtn.disabled = false;
+        }
+      }
+    }
+
+    async function refreshAstroChart() {
+      if (!astroChartImage) return;
+      try {
+        const response = await fetch(`/api/astro-chart?cacheBust=${Date.now()}`);
+        if (!response.ok) throw new Error('no chart');
+        const data = await response.json();
+        astroChartImage.src = data.url;
+      } catch (err) {
+        console.warn('Astro chart refresh failed', err);
+      }
+    }
+
+    if (unitToggle) {
+      unitToggle.addEventListener('click', () => {
+        if (!unitPicker) return;
+        const isOpen = unitPicker.classList.contains('open');
+        if (isOpen) {
+          closeUnitMenu();
+        } else {
+          openUnitMenu();
+        }
+      });
+    }
+
+    unitOptions.forEach((option) => {
+      option.addEventListener('click', () => {
+        setTempUnit(option.dataset.unitOption);
+      });
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!unitPicker) return;
+      if (!unitPicker.contains(event.target)) {
+        closeUnitMenu();
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        closeUnitMenu();
+      }
+    });
+
+    quickRangeButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const { rangeHours } = button.dataset;
+        if (!rangeHours) return;
+        setQuickRange(Number(rangeHours));
+      });
+    });
+
+    setInterval(() => {
+      if (chartState.mode === 'hours') {
+        refresh({ hours: chartState.hours });
+      } else if (chartState.mode === 'custom') {
+        refresh({ start: chartState.start, end: chartState.end });
+      }
+    }, 60000);
+    setInterval(refreshLatestImage, 60000);
+    setInterval(refreshAstroChart, 3600000);
+
+    function applyScale(target) {
+      const controls = scaleControls[target];
+      if (!controls) return;
+      const chartInstance = controls.chart;
+      if (!chartInstance) return;
+      const minVal = controls.min.value.trim();
+      const maxVal = controls.max.value.trim();
+      chartInstance.options.scales.y.min = minVal === '' ? undefined : Number(minVal);
+      chartInstance.options.scales.y.max = maxVal === '' ? undefined : Number(maxVal);
+      chartInstance.update();
+    }
+
+    function resetScale(target) {
+      const controls = scaleControls[target];
+      if (!controls) return;
+      controls.min.value = '';
+      controls.max.value = '';
+      const chartInstance = controls.chart;
+      if (!chartInstance) return;
+      chartInstance.options.scales.y.min = undefined;
+      chartInstance.options.scales.y.max = undefined;
+      chartInstance.update();
+    }
+
+    document.querySelectorAll('.apply-scale').forEach((button) => {
+      button.addEventListener('click', () => applyScale(button.dataset.target));
+    });
+    document.querySelectorAll('.reset-scale').forEach((button) => {
+      button.addEventListener('click', () => resetScale(button.dataset.target));
+    });
+
+    modeButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const mode = button.dataset.modeOption;
+        if (!mode || mode === currentMode) {
+          return;
+        }
+        updateControlState({ mode }).catch(notifyControlError);
+      });
+    });
+    if (manualOnBtn) {
+      manualOnBtn.addEventListener('click', () => {
+        updateControlState({ mode: 'manual', manual_on: true }).catch(notifyControlError);
+      });
+    }
+    if (manualOffBtn) {
+      manualOffBtn.addEventListener('click', () => {
+        updateControlState({ mode: 'manual', manual_on: false }).catch(notifyControlError);
+      });
+    }
+    if (refreshImageBtn) {
+      refreshImageBtn.addEventListener('click', () => refreshLatestImage());
+    }
+
+    setModeButtonState('auto');
+    fetchControlState().catch(notifyControlError);
+    refreshLatestImage();
+    refreshAstroChart();
+    setScaleDefaultsForUnit();
+    updateHeadingUnits();
+    setQuickRange(chartState.hours);
+    startLiveStream();
+  </script>
+</body>
+</html>

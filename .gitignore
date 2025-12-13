@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+Daily_Video_Emailer.py
+Temp_Humidity_Logs/*.csv
+archive/
+.env
