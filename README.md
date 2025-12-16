@@ -1,4 +1,4 @@
-# AllSky Dew Heater Platform
+# All-Sky Dew Heater Platform
 
 Raspberry Pi-based controller that keeps an AllSky camera enclosure dry by continuously monitoring temperature/humidity, computing the dew point, and driving a resistive heater through a relay. A built-in Flask + Chart.js dashboard exposes live graphs, historical data, relay controls, and astronomy/ambient weather context so the system can run unattended and still be inspected remotely.
 
